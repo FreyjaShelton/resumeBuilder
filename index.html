@@ -42,7 +42,22 @@
     <section class="actions">
       <button type="button" id="append-btn" class="btn btn-secondary">Append job listing (no AI)</button>
       <button type="button" id="tailor-btn" class="btn btn-primary">Tailor resume with Claude</button>
+      <button type="button" id="gaps-btn" class="btn btn-secondary">Find missing skills</button>
       <span id="status" class="status" role="status" aria-live="polite"></span>
+    </section>
+
+    <section class="panel" id="gaps-panel" hidden>
+      <div class="output-header">
+        <label for="gaps-output">Skills the listing asks for that aren't on your resume</label>
+        <div class="output-actions">
+          <button type="button" id="gaps-copy-btn" class="btn btn-secondary">Copy</button>
+        </div>
+      </div>
+      <textarea id="gaps-output" spellcheck="false" readonly></textarea>
+      <p class="hint">
+        Informational only — nothing here is added to your resume automatically. Only add an item
+        if you genuinely have that skill or experience.
+      </p>
     </section>
 
     <section class="panel" id="output-panel" hidden>

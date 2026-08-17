@@ -91,6 +91,10 @@ input:focus {
   outline-offset: 1px;
 }
 
+#gaps-output {
+  min-height: 140px;
+}
+
 .key-row {
   display: flex;
   gap: 0.5rem;

@@ -27,6 +27,10 @@ const downloadBtn = document.getElementById("download-btn");
 const pdfBtn = document.getElementById("pdf-btn");
 const printSheet = document.getElementById("print-sheet");
 const printContent = document.getElementById("print-content");
+const gapsBtn = document.getElementById("gaps-btn");
+const gapsPanel = document.getElementById("gaps-panel");
+const gapsOutput = document.getElementById("gaps-output");
+const gapsCopyBtn = document.getElementById("gaps-copy-btn");
 
 const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
 if (storedKey) {
@@ -57,6 +61,7 @@ function showOutput(text) {
 function setBusy(busy) {
   appendBtn.disabled = busy;
   tailorBtn.disabled = busy;
+  gapsBtn.disabled = busy;
 }
 
 function getInputs() {
@@ -76,6 +81,80 @@ appendBtn.addEventListener("click", () => {
   setStatus("Job listing appended.", "success");
 });
 
+const TAILOR_SYSTEM_PROMPT =
+  "You are an expert resume writer and career coach. You will be given a candidate's " +
+  "existing resume and a job listing they want to apply to. Rewrite the resume so it is " +
+  "tailored to the job listing: reorder and rephrase bullet points to foreground the most " +
+  "directly relevant experience and skills, and incorporate keywords and terminology from " +
+  "the listing wherever the candidate genuinely has that experience. Do not fabricate or " +
+  "invent employers, titles, dates, skills, or experience the candidate does not have — " +
+  "only reframe and reprioritize what is already present in their resume.\n\n" +
+  "Skills section: identify every skill, tool, technology, and qualification named in the " +
+  "job listing. For each one the candidate's original resume already demonstrates — " +
+  "explicitly, or clearly implied by the experience they describe — make sure it appears, " +
+  "using the job listing's own wording, in a visible Skills section (add one near the top " +
+  "if the resume doesn't already have one, or update the existing one). Do not add a " +
+  "skill, tool, technology, or qualification that is not evidenced anywhere in the " +
+  "candidate's original resume, even if the job listing asks for it — surfacing genuine " +
+  "overlap is the goal, not padding the list.\n\n" +
+  "Preserve the resume's existing format (plain text or Markdown) and keep contact " +
+  "information exactly as given. Output only the revised resume text, with no preamble, " +
+  "explanation, or commentary before or after it.";
+
+const GAPS_SYSTEM_PROMPT =
+  "You compare a candidate's resume against a job listing and identify skills, tools, " +
+  "technologies, or qualifications the job listing explicitly asks for that are not " +
+  "evidenced anywhere in the candidate's resume — not stated explicitly, and not clearly " +
+  "implied by the experience they describe. List each missing item on its own line as a " +
+  "Markdown bullet ('- skill name'), using the job listing's own wording, in the order they " +
+  "appear in the listing. If the resume already covers something the listing asks for " +
+  "(explicitly or via clearly implied experience), leave it out — only genuine gaps belong " +
+  "here. If there are no genuine gaps, output exactly this sentence and nothing else: " +
+  "'No gaps found — the resume already covers everything the listing asks for.' Output " +
+  "nothing besides the list (or that sentence): no preamble, no headers, no commentary.";
+
+// Runs one Claude request and returns its text, or throws. Callers already
+// validate resume/job/apiKey before calling this, so it stays focused on
+// just the API round trip.
+async function askClaude(apiKey, { system, userContent, maxTokens }) {
+  const Anthropic = await loadAnthropicSdk();
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: maxTokens,
+    system,
+    messages: [{ role: "user", content: userContent }],
+  });
+
+  if (response.stop_reason === "refusal") {
+    const err = new Error("Claude declined this request.");
+    err.refusal = true;
+    throw err;
+  }
+
+  return response.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+}
+
+function describeClaudeError(err) {
+  if (err && err.refusal) {
+    return "Claude declined this request. Try rephrasing the resume or job listing.";
+  }
+  if (err && err.status === 401) {
+    return "Invalid API key. Double-check it and try again.";
+  }
+  if (err && err.status === 429) {
+    return "Rate limited by Anthropic. Wait a moment and try again.";
+  }
+  if (err && err.status) {
+    return `Anthropic API error (${err.status}): ${err.message || "request failed"}`;
+  }
+  return "Request failed — check your connection and API key, then try again.";
+}
+
 tailorBtn.addEventListener("click", async () => {
   const { resume, job } = getInputs();
   if (!resume || !job) {
@@ -93,66 +172,64 @@ tailorBtn.addEventListener("click", async () => {
   setStatus("Tailoring your resume with Claude...");
 
   try {
-    const Anthropic = await loadAnthropicSdk();
-    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      system:
-        "You are an expert resume writer and career coach. You will be given a candidate's " +
-        "existing resume and a job listing they want to apply to. Rewrite the resume so it is " +
-        "tailored to the job listing: reorder and rephrase bullet points to foreground the most " +
-        "directly relevant experience and skills, and incorporate keywords and terminology from " +
-        "the listing wherever the candidate genuinely has that experience. Do not fabricate or " +
-        "invent employers, titles, dates, skills, or experience the candidate does not have — " +
-        "only reframe and reprioritize what is already present in their resume.\n\n" +
-        "Skills section: identify every skill, tool, technology, and qualification named in the " +
-        "job listing. For each one the candidate's original resume already demonstrates — " +
-        "explicitly, or clearly implied by the experience they describe — make sure it appears, " +
-        "using the job listing's own wording, in a visible Skills section (add one near the top " +
-        "if the resume doesn't already have one, or update the existing one). Do not add a " +
-        "skill, tool, technology, or qualification that is not evidenced anywhere in the " +
-        "candidate's original resume, even if the job listing asks for it — surfacing genuine " +
-        "overlap is the goal, not padding the list.\n\n" +
-        "Preserve the resume's existing format (plain text or Markdown) and keep contact " +
-        "information exactly as given. Output only the revised resume text, with no preamble, " +
-        "explanation, or commentary before or after it.",
-      messages: [
-        {
-          role: "user",
-          content:
-            `## Candidate's current resume\n\n${resume}\n\n` +
-            `## Job listing to tailor the resume for\n\n${job}`,
-        },
-      ],
+    const text = await askClaude(apiKey, {
+      system: TAILOR_SYSTEM_PROMPT,
+      userContent:
+        `## Candidate's current resume\n\n${resume}\n\n` +
+        `## Job listing to tailor the resume for\n\n${job}`,
+      maxTokens: 4096,
     });
-
-    if (response.stop_reason === "refusal") {
-      setStatus("Claude declined this request. Try rephrasing the resume or job listing.", "error");
-      return;
-    }
-
-    const text = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("\n");
-
     showOutput(text);
     setStatus("Resume tailored.", "success");
   } catch (err) {
     console.error(err);
-    if (err && err.status === 401) {
-      setStatus("Invalid API key. Double-check it and try again.", "error");
-    } else if (err && err.status === 429) {
-      setStatus("Rate limited by Anthropic. Wait a moment and try again.", "error");
-    } else if (err && err.status) {
-      setStatus(`Anthropic API error (${err.status}): ${err.message || "request failed"}`, "error");
-    } else {
-      setStatus("Request failed — check your connection and API key, then try again.", "error");
-    }
+    setStatus(describeClaudeError(err), "error");
   } finally {
     setBusy(false);
+  }
+});
+
+gapsBtn.addEventListener("click", async () => {
+  const { resume, job } = getInputs();
+  if (!resume || !job) {
+    setStatus("Paste both your resume and the job listing first.", "error");
+    return;
+  }
+  const apiKey = apiKeyInput.value.trim();
+  if (!apiKey) {
+    setStatus("Add your Anthropic API key above to find missing skills.", "error");
+    apiKeyInput.focus();
+    return;
+  }
+
+  setBusy(true);
+  setStatus("Comparing the listing against your resume...");
+
+  try {
+    const text = await askClaude(apiKey, {
+      system: GAPS_SYSTEM_PROMPT,
+      userContent: `## Candidate's current resume\n\n${resume}\n\n## Job listing\n\n${job}`,
+      maxTokens: 1024,
+    });
+    gapsOutput.value = text;
+    gapsPanel.hidden = false;
+    gapsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setStatus("Done.", "success");
+  } catch (err) {
+    console.error(err);
+    setStatus(describeClaudeError(err), "error");
+  } finally {
+    setBusy(false);
+  }
+});
+
+gapsCopyBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(gapsOutput.value);
+    setStatus("Copied to clipboard.", "success");
+  } catch (err) {
+    console.error(err);
+    setStatus("Couldn't copy automatically — select the text and copy manually.", "error");
   }
 });
 
