@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Tailor</title>
+  <meta name="description" content="Merge a job listing into your resume, either verbatim or AI-tailored with Claude." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Resume Tailor</h1>
+    <p class="subtitle">Paste your resume and a job listing, then either append the listing as-is or have Claude tailor your resume to it.</p>
+  </header>
+
+  <main>
+    <section class="panel" id="api-key-panel">
+      <label for="api-key">Anthropic API key</label>
+      <div class="key-row">
+        <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" />
+        <button type="button" id="toggle-key-visibility" class="btn btn-secondary" aria-label="Show/hide API key">Show</button>
+      </div>
+      <p class="hint">
+        Only needed for AI tailoring, not for the plain append. Your key is stored solely in this browser's
+        <code>localStorage</code> and is sent directly from your browser to Anthropic's API — it never touches any
+        server of ours. Get a key at
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com/settings/keys</a>.
+      </p>
+    </section>
+
+    <section class="columns">
+      <div class="panel">
+        <label for="resume-input">Your resume</label>
+        <textarea id="resume-input" placeholder="Paste your resume as plain text or Markdown..."></textarea>
+      </div>
+      <div class="panel">
+        <label for="job-input">Job listing</label>
+        <textarea id="job-input" placeholder="Paste the full job listing / description..."></textarea>
+      </div>
+    </section>
+
+    <section class="actions">
+      <button type="button" id="append-btn" class="btn btn-secondary">Append job listing (no AI)</button>
+      <button type="button" id="tailor-btn" class="btn btn-primary">Tailor resume with Claude</button>
+      <button type="button" id="gaps-btn" class="btn btn-secondary">Find missing skills</button>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </section>
+
+    <section class="panel" id="gaps-panel" hidden>
+      <div class="output-header">
+        <label for="gaps-output">Skills the listing asks for that aren't on your resume</label>
+        <div class="output-actions">
+          <button type="button" id="gaps-copy-btn" class="btn btn-secondary">Copy</button>
+        </div>
+      </div>
+      <textarea id="gaps-output" spellcheck="false" readonly></textarea>
+      <p class="hint">
+        Informational only — nothing here is added to your resume automatically. Only add an item
+        if you genuinely have that skill or experience.
+      </p>
+    </section>
+
+    <section class="panel" id="output-panel" hidden>
+      <div class="output-header">
+        <label for="output">Result</label>
+        <div class="output-actions">
+          <button type="button" id="copy-btn" class="btn btn-secondary">Copy</button>
+          <button type="button" id="download-btn" class="btn btn-secondary">Download .md</button>
+          <button type="button" id="pdf-btn" class="btn btn-secondary">Export as PDF</button>
+        </div>
+      </div>
+      <textarea id="output" spellcheck="false"></textarea>
+      <p class="hint">
+        "Export as PDF" opens your browser's print dialog with a formatted one-page version of the
+        result above — choose "Save as PDF" as the destination. Everything in it is plain, visible
+        text; nothing is hidden.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Runs entirely in your browser. No backend, no data collection.</p>
+  </footer>
+
+  <!-- Off-screen on normal viewing; becomes the only visible thing when printing (see style.css). -->
+  <div id="print-sheet" aria-hidden="true">
+    <div id="print-content"></div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
