@@ -51,15 +51,26 @@
         <div class="output-actions">
           <button type="button" id="copy-btn" class="btn btn-secondary">Copy</button>
           <button type="button" id="download-btn" class="btn btn-secondary">Download .md</button>
+          <button type="button" id="pdf-btn" class="btn btn-secondary">Export as PDF</button>
         </div>
       </div>
       <textarea id="output" spellcheck="false"></textarea>
+      <p class="hint">
+        "Export as PDF" opens your browser's print dialog with a formatted one-page version of the
+        result above — choose "Save as PDF" as the destination. Everything in it is plain, visible
+        text; nothing is hidden.
+      </p>
     </section>
   </main>
 
   <footer>
     <p>Runs entirely in your browser. No backend, no data collection.</p>
   </footer>
+
+  <!-- Off-screen on normal viewing; becomes the only visible thing when printing (see style.css). -->
+  <div id="print-sheet" aria-hidden="true">
+    <div id="print-content"></div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>
